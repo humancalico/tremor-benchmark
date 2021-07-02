@@ -1,9 +1,11 @@
 lockfileVersion: 5.3
 
 specifiers:
+  dotenv: ^10.0.0
   express: ^4.17.1
 
 dependencies:
+  dotenv: 10.0.0
   express: 4.17.1
 
 packages:
@@ -75,6 +77,11 @@ packages:
 
   /destroy/1.0.4:
     resolution: {integrity: sha1-l4hXRCxEdJ5CBmE+N5RiBYJqvYA=}
+    dev: false
+
+  /dotenv/10.0.0:
+    resolution: {integrity: sha512-rlBi9d8jpv9Sf1klPjNfFAuWDjKLwTIJJ/VxtoTwIR6hnZxcEOQCZg2oIL3MWBYw5GpUDKOEnND7LXTbIpQ03Q==}
+    engines: {node: '>=10'}
     dev: false
 
   /ee-first/1.1.1:
