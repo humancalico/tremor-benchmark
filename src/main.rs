@@ -36,8 +36,57 @@ fn main() -> Result<()> {
     env::set_current_dir(original_working_directory.join("docker")).expect("failed to change the current directory to docker/. Are you running this program from the root directory");
 
     // build Docker Image
-    // FIXME this assumes that this process is run from the root directory
-    // TODO actually run this
+    // FIXME this assumes that this process is run from the docker/ directory
+    fs::write("Dockerfile", String::from(
+    r#"FROM rust:1.53 as builder
+
+# TODO ensure wget is present
+# TODO figure out a way to get commit hash here
+# We planned to disable networking inside the docker container at first but now we are doing this so that
+# can't be done anymore
+# TODO figure out a way by which we can allow networking in docker for certain sites only
+RUN wget https://github.com/tremor-rs/tremor-runtime/archive/COMMITHASH.tar.gz
+
+RUN tar -xf COMMITHASH.tar.gz
+
+RUN rm COMMITHASH.tar.gz
+
+WORKDIR tremor-runtime-COMMITHASH/
+
+ENV RUSTFLAGS="-C target-feature=+avx,+avx2,+sse4.2"
+
+# install dependencies
+RUN apt-get update \
+    && apt-get install -y libclang-dev cmake
+
+RUN cargo build -p tremor-cli --release
+
+FROM debian:buster-slim
+
+RUN useradd -ms /bin/bash tremor
+
+RUN apt-get update \
+    && apt-get install -y libssl1.1 libcurl4 libatomic1 tini curl
+
+# Copy the binary to /usr/local/bin
+COPY --from=builder tremor-runtime-COMMITHASH/target/release/tremor /usr/local/bin/
+
+# stdlib
+RUN mkdir -p /usr/share/tremor/lib
+COPY --from=builder tremor-runtime-COMMITHASH/tremor-script/lib /usr/share/tremor/lib
+
+# setting TREMOR_PATH
+# /usr/local/share/tremor - for host-specific local tremor-script modules and libraries, takes precedence
+# /usr/share/tremor/lib - place for the tremor-script stdlib
+ENV TREMOR_PATH="/usr/local/share/tremor:/usr/share/tremor/lib"
+
+RUN cd ..
+
+COPY benchmarks/ .
+
+CMD [ "tremor", "test", "bench", "/bench", "-o" ]
+"#).replace("COMMITHASH", &opts.commit_hash))?;
+
     // add the commit hash as tag
     Command::new("docker")
         .args(&[
@@ -95,9 +144,21 @@ services:
         ),
     )?;
 
-    // TODO remove report.json file
+    // remove Dockefile
+    fs::remove_file(Path::new("docker").join("Dockerfile"))?;
 
-    // TODO remove docker-compose.yml
+    // remove report.json file
+    fs::remove_file(Path::new("docker").join("report.json"))?;
+
+    // remove docker-compose.yml
+    fs::remove_file(Path::new("docker").join("docker-compose.yml"))?;
+
+    // remove everything docker
+    // FIXME this is probably very bad
+    Command::new("docker")
+        .args(&["system", "prune", "--all"])
+        .output()?;
+
 
     // TODO remove docker image
 
