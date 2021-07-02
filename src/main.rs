@@ -1,5 +1,6 @@
 use clap::{crate_authors, crate_version, Clap};
 use color_eyre::eyre::Result;
+use dotenv::dotenv;
 
 use std::env;
 use std::fs;
@@ -22,6 +23,8 @@ struct Opts {
 fn main() -> Result<()> {
     color_eyre::install()?;
     // TODO check for dependencies like docker, docker-compose
+
+    dotenv().ok();
 
     let opts: Opts = Opts::parse();
 
@@ -121,11 +124,27 @@ services:
         ),
     )?;
 
+    // TODO add some sort of a timeout
+
     // run benchmarks inside docker image and store it in a report.json
     Command::new("docker-compose").arg("up").output()?;
 
     // change the directory back
-    env::set_current_dir(original_working_directory)?;
+    env::set_current_dir(&original_working_directory)?;
+
+    Command::new("git")
+        .args(&[
+            "clone",
+            "--depth=1",
+            "branch",
+            "data",
+            &format!(
+                "https://{}@github.com/tremor-rs/tremor-benchmark.git",
+                env::var("TREMORBOT_PAT")?
+            ),
+            "data",
+        ])
+        .output()?;
 
     // parse the report into data.json and recent.json
     fs::write(
@@ -159,10 +178,43 @@ services:
         .args(&["system", "prune", "--all"])
         .output()?;
 
+    // git config user.email 81628356+tremorbot@users.noreply.github.com
+    Command::new("git")
+        .args(&[
+            "config",
+            "user.email",
+            "81628356+tremorbot@users.noreply.github.com",
+        ])
+        .output()?;
 
-    // TODO remove docker image
+    // git config user.name "tremorbot"
+    Command::new("git")
+        .args(&["config", "user.name", "tremorbot"])
+        .output()?;
 
-    // TODO remove docker container
+    env::set_current_dir("data")
+        .expect("failed to change the current directory to tremor-benchmark");
+
+    // git add data/data.json data/recent.json
+    Command::new("git")
+        .args(&["add", "data.json", "recent.json"])
+        .output()?;
+
+    // git commit --message "chore(data): update benchmarks for SHORTCOMMITHASH"
+    Command::new("git")
+        .args(&[
+            "commit",
+            "-m",
+            &format!("chore(data): update benchmarks for {}", short_commit_hash),
+        ])
+        .output()?;
+
+    // git push
+    Command::new("git").args("push").output()?;
+
+    env::set_current_dir("..")?;
+
+    fs::remove_dir_all("data")?;
 
     Ok(())
 }
