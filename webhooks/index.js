@@ -42,9 +42,26 @@ function verify(req, res, next) {
   next();
 }
 
-app.post("/payload", function (req, res) {
-  if (req.body.action === "completed") {
-    const commit_hash = req.body.check_suite.head_commit.id;
+app.post("/payload", verify, function (req, res) {
+  // TODO change check_suite to check_run
+  let commit_hash;
+  if (
+    req.body.action === "completed" &&
+    req.body.check_suite.conclusion === "success" &&
+    req.body.check_suite.head_branch === "main" &&
+    // FIXME here(https://docs.github.com/en/developers/webhooks-and-events/webhooks/webhook-events-and-payloads#check_suite)
+    // it says that > The Checks API only looks for pushes in the repository where the check suite or check run were created. Pushes to a branch in a forked repository are not detected and return an empty pull_requests array and a null value for head_branch.
+    // But it still sends the payload for pull_requests even after adding this check
+    req.body.check_suite.pull_requests.length === 0 &&
+    commit_hash !== req.body.check_suite.head_sha
+  ) {
+    console.log(req.body);
+    commit_hash = req.body.check_suite.head_sha;
+    // respond to the post request
+    res.status(200).send(
+      `Received a request for the commit ${commit_hash} and request body was signed`,
+    );
+    // start the benchmark pipeline
     const child = spawnSync("./target/release/tremor-benchmark", [
       "./data/data.json",
       "./data/recent.json",
