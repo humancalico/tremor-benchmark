@@ -22,7 +22,8 @@ struct Opts {
 
 fn main() -> Result<()> {
     color_eyre::install()?;
-    // TODO check for dependencies like docker, docker-compose
+    // TODO check for dependencies like docker, docker-compose and git
+    // TODO should be able to use other container runtimes other than docker compose like podman
 
     dotenv().ok();
 
@@ -107,6 +108,8 @@ CMD [ "tremor", "test", "bench", "/bench", "-o" ]
     let report_path = Path::new("report.json").canonicalize()?;
 
     // write a docker-compose.yml file
+    // TODO read the docker-compose.yml file to string
+    // TODO use the docker copy command to copy the report.json file instead of doing this
     fs::write(
         "docker-compose.yml",
         format!(
